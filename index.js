@@ -2,13 +2,27 @@ import express from 'express'
 import mongoose from 'mongoose'
 import dotenv from 'dotenv'
 
-// 🔹 Cargar variables de entorno
 dotenv.config()
 
 const app = express()
 app.use(express.json())
 
-// 🔹 Esquema y modelo
+// =======================
+// 🔹 Conexión a MongoDB
+// =======================
+async function connectDB() {
+  if (mongoose.connection.readyState >= 1) {
+    return
+  }
+
+  return mongoose.connect(process.env.MONGO_URI, {
+    serverSelectionTimeoutMS: 5000
+  })
+}
+
+// =======================
+// 🔹 Esquema y Modelo
+// =======================
 const userSchema = new mongoose.Schema({
   nombre: String,
   cedula: Number,
@@ -16,28 +30,20 @@ const userSchema = new mongoose.Schema({
   edad: Number
 })
 
-const User = mongoose.model('User', userSchema)
+// Evita crear modelos duplicados en Vercel
+const User = mongoose.models.User || mongoose.model('User', userSchema)
 
-// 🔹 Conexión a MongoDB (evita múltiples conexiones en Vercel)
-const mongoUri = process.env.MONGO_URI
-
-if (!mongoUri) {
-  throw new Error('❌ MONGO_URI no está definida en las variables de entorno')
-}
-
-if (mongoose.connection.readyState === 0) {
-  mongoose.connect(mongoUri)
-    .then(() => console.log('✅ Conectado a MongoDB'))
-    .catch(err => console.error('❌ Error MongoDB:', err))
-}
-
-// ================= ENDPOINTS =================
+// =======================
+// 🔹 ENDPOINTS
+// =======================
 
 // POST - crear usuario
 app.post('/usuarios', async (req, res) => {
   try {
+    await connectDB()
     const nuevoUsuario = new User(req.body)
     await nuevoUsuario.save()
+
     res.status(201).json({
       mensaje: 'Usuario creado',
       usuario: nuevoUsuario
@@ -50,6 +56,7 @@ app.post('/usuarios', async (req, res) => {
 // GET - obtener usuarios
 app.get('/usuarios', async (req, res) => {
   try {
+    await connectDB()
     const usuarios = await User.find()
     res.json(usuarios)
   } catch (error) {
@@ -60,7 +67,9 @@ app.get('/usuarios', async (req, res) => {
 // PUT - actualizar por cédula
 app.put('/usuarios/:cc', async (req, res) => {
   try {
+    await connectDB()
     const cedula = Number(req.params.cc)
+
     const usuario = await User.findOneAndUpdate(
       { cedula },
       req.body,
@@ -83,7 +92,9 @@ app.put('/usuarios/:cc', async (req, res) => {
 // DELETE - eliminar por cédula
 app.delete('/usuarios/:cc', async (req, res) => {
   try {
+    await connectDB()
     const cedula = Number(req.params.cc)
+
     const usuario = await User.findOneAndDelete({ cedula })
 
     if (!usuario) {
@@ -99,5 +110,7 @@ app.delete('/usuarios/:cc', async (req, res) => {
   }
 })
 
-// 🔹 EXPORTAR app (NO listen)
+// =======================
+// 🔹 Exportar app (sin listen)
+// =======================
 export default app
