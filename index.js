@@ -100,4 +100,6 @@ app.delete('/usuarios/:cc', async (req, res) => {
 })
 
 // 🔹 EXPORTAR app (NO listen)
-export default app
+export default app.listen(3000, () => {
+  console.log('Servidor escuchando en puerto 3000')
+})
